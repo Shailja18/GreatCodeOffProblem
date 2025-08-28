@@ -1,0 +1,169 @@
+import java.util.*;
+
+class Location {
+    String id;
+    int x, y;
+    int pizzas;
+    String start, end; // For time windows
+
+    public Location(String id, int x, int y, int pizzas, String start, String end) {
+        this.id = id;
+        this.x = x;
+        this.y = y;
+        this.pizzas = pizzas;
+        this.start = start;
+        this.end = end;
+    }
+
+    public Location(String id, int x, int y, int pizzas) {
+        this(id, x, y, pizzas, null, null);
+    }
+}
+
+public class PizzaDelivery {
+
+    // Manhattan Distance
+    public static int manhattan(Location a, Location b) {
+        return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+    }
+
+    // Base Problem
+    public static int tsp(List<Location> locs, Location depot) {
+        boolean[] visited = new boolean[locs.size()];
+        return tspHelper(depot, depot, locs, visited, 0, 0, locs.size());
+    }
+
+    private static int tspHelper(Location curr, Location depot, List<Location> locs,
+                                 boolean[] visited, int count, int cost, int N) {
+        if (count == N) {
+            return cost + manhattan(curr, depot);
+        }
+        int ans = Integer.MAX_VALUE;
+        for (int i = 0; i < N; i++) {
+            if (!visited[i]) {
+                visited[i] = true;
+                ans = Math.min(ans,
+                        tspHelper(locs.get(i), depot, locs, visited, count + 1,
+                                cost + manhattan(curr, locs.get(i)), N));
+                visited[i] = false;
+            }
+        }
+        return ans;
+    }
+
+    // Capacity Constrained 
+    public static void capacityConstrained(List<Location> locs, Location depot, int capacity) {
+        List<List<Location>> trips = new ArrayList<>();
+        List<Location> currentTrip = new ArrayList<>();
+        int load = 0;
+        for (Location loc : locs) {
+            if (load + loc.pizzas > capacity) {
+                trips.add(new ArrayList<>(currentTrip));
+                currentTrip.clear();
+                load = 0;
+            }
+            currentTrip.add(loc);
+            load += loc.pizzas;
+        }
+        if (!currentTrip.isEmpty()) trips.add(currentTrip);
+
+        int totalCost = 0;
+        for (List<Location> trip : trips) {
+            Location prev = depot;
+            int cost = 0;
+            for (Location loc : trip) {
+                cost += manhattan(prev, loc);
+                prev = loc;
+            }
+            cost += manhattan(prev, depot);
+            totalCost += cost;
+            System.out.println("Trip: " + trip.stream().map(l -> l.id).toList() + " | Cost: " + cost);
+        }
+        System.out.println("Total cost with capacity constraint = " + totalCost);
+    }
+
+    // Constraint Time Windows 
+    public static void vrptw(List<Location> locs, Location depot) {
+        int time = 9 * 60; // Start at 09:00 in minutes
+        int totalCost = 0;
+        Location prev = depot;
+
+        for (Location loc : locs) {
+            int travel = manhattan(prev, loc);
+            time += travel;
+            totalCost += travel;
+
+            System.out.println("Arrived at " + loc.id + " at " + minutesToHHMM(time));
+            prev = loc;
+        }
+        totalCost += manhattan(prev, depot);
+        System.out.println("Returned to depot at " + minutesToHHMM(time + manhattan(prev, depot)));
+        System.out.println("Total cost with time windows = " + totalCost);
+    }
+
+    // Time-Dependent Costs
+    public static void timeDependent(List<Location> locs, Location depot) {
+        int time = 16 * 60 + 30; // Start 16:30
+        int totalCost = 0;
+        Location prev = depot;
+
+        for (Location loc : locs) {
+            int dist = manhattan(prev, loc);
+            double multiplier = 1.0;
+
+            // Rush east (x > 0, 17:00–19:00)
+            if (loc.x > 0 && time >= 17 * 60 && time <= 19 * 60) multiplier = 2.0;
+
+            // Evening north (y > 10, 16:00–18:00)
+            if (loc.y > 10 && time >= 16 * 60 && time <= 18 * 60) multiplier = 1.5;
+
+            int legCost = (int) Math.round(dist * multiplier);
+            totalCost += legCost;
+            time += dist;
+
+            System.out.println(prev.id + " → " + loc.id + " at " + minutesToHHMM(time) +
+                    " | dist=" + dist + " | mult=" + multiplier + " | cost=" + legCost);
+            prev = loc;
+        }
+
+        // Return to depot
+        int dist = manhattan(prev, depot);
+        totalCost += dist;
+        System.out.println(prev.id + " → Depot | cost=" + dist);
+        System.out.println("Total time-dependent cost = " + totalCost);
+    }
+
+    private static String minutesToHHMM(int mins) {
+        int h = mins / 60;
+        int m = mins % 60;
+        return String.format("%02d:%02d", h, m);
+    }
+
+    public static void main(String[] args) {
+        Location depot = new Location("Depot", 0, 0, 0);
+        List<Location> locs = Arrays.asList(
+            new Location("L1", 5, -10, 3, "09:05", "10:05"),
+            new Location("L2", -12, 8, 5, "10:30", "11:30"),
+            new Location("L3", 15, 20, 2, "12:00", "13:00"),
+            new Location("L4", -8, -15, 7, "13:30", "14:30"),
+            new Location("L5", 25, -5, 4, "15:00", "16:00"),
+            new Location("L6", -20, 18, 6, "16:30", "17:30"),
+            new Location("L7", 10, 30, 1, "18:00", "19:00"),
+            new Location("L8", -30, -22, 8, "19:30", "20:30"),
+            new Location("L9", 18, 14, 2, "21:00", "22:00"),
+            new Location("L10", -7, 28, 5, "22:30", "23:30")
+        );
+
+        System.out.println("===== Base TSP =====");
+        System.out.println("Minimum cost = " + tsp(locs, depot));
+
+        System.out.println("\n===== Capacity Constrained VRP =====");
+        capacityConstrained(locs, depot, 10);
+
+        System.out.println("\n===== VRP with Time Windows =====");
+        vrptw(locs, depot);
+
+        System.out.println("\n===== Time Dependent Costs =====");
+        timeDependent(locs, depot);
+    }
+}
